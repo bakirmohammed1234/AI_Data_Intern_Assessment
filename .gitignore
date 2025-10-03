@@ -1,4 +1,4 @@
 # Jupyter Notebook checkpoints
 .ipynb_checkpoints/
-# Ignore environment folders everywhere
+# Ignore environment files
 .env
