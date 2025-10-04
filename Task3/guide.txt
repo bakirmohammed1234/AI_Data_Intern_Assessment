@@ -1,0 +1,23 @@
+How to Use This n8n Workflow
+============================
+
+This folder contains an exported n8n workflow (Simple_Automation.json).
+
+Steps to Import:
+----------------
+1. Open your n8n instance (Cloud or self-hosted).
+2. Go to the "Workflows" menu.
+3. Click "Import from File".
+4. Select the file: Simple_Automation.json
+5. The workflow will now appear in your n8n dashboard.
+6. Click "Activate" to enable it.
+
+Notes:
+------
+- This workflow was exported from my n8n setup.
+- API credentials are not included for security reasons.
+- After import, you may need to add your own credentials or adjust nodes.
+- Tested on n8n version 1.113.3.
+
+Author: Bakir Mohammed
+Contact: bakirmohammed20@gmail.com

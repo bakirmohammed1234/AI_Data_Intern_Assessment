@@ -1,0 +1,834 @@
+{
+  "name": "internship",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "Example Use Case:\n\nWhen a company is mentioned in industry news (e.g. hiring, partnerships, funding, etc.), automatically:\n\n● Enrich company details\n● Find relevant contacts (e.g., Head of Marketing)\n● Send the info to the Sales team via Slack or Email\n",
+        "height": 304,
+        "width": 976
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        992,
+        -160
+      ],
+      "id": "425ac1b2-24a7-47bf-8329-eaa59b4cb506",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-pro",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-pro"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "={{ $json.data }}"
+            }
+          ]
+        },
+        "options": {
+          "systemMessage": "=Extract structured events from the following RSS <item>.  Identify: - company/organization names - event type (choose strictly from: \"hiring\", \"funding\", \"partnership\", \"acquisition\", \"product launch\", \"layoffs\", \"merger\", \"investment\", \"expansion\", \"IPO\", \"bankruptcy\", \"shutdown\") - event date (if present in pubDate or text) - source (from <source> if available)\nReturn a JSON array with this schema:\n[\n  {\n    \"company\": \"...\",\n    \"event_type\": \"...\",\n    \"description\": \"...\",\n    \"confidence\": 0.0,\n    \"date\": \"...\",\n    \"source\": \"...\",\n    \"url\": \"...\"\n  }\n]"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        -240,
+        -48
+      ],
+      "id": "5404acf1-5b10-41a9-bfac-5e5730d3f6ad",
+      "name": "Message a model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "QbPmzyioRhhvjkXp",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const keywords = [\n  // Finance / levées de fonds\n  \"funding\", \"investment\", \"seed round\", \"series a\", \"series b\", \"series c\",\n  \"pre-seed\", \"venture capital\", \"vc firm\", \"angel investor\", \"equity financing\",\n  \"debt financing\", \"ipo\", \"initial public offering\", \"going public\", \"valuation\",\n  \"unicorn\", \"merger\", \"acquisition\", \"m&a\", \"takeover\", \"buyout\", \"joint venture\",\n\n  // Croissance & stratégie\n  \"expansion\", \"scaling\", \"market entry\", \"new office\", \"international expansion\",\n  \"franchise\", \"strategic alliance\", \"partnership\", \"collaboration\", \"strategic deal\",\n  \"joint initiative\",\n\n  // RH / emploi\n  \"hiring\", \"recruiting\", \"recruitment\", \"talent acquisition\", \"job openings\",\n  \"new roles\", \"executive hire\", \"c-level hire\", \"appointed\", \"promotion\", \"resigned\",\n  \"stepping down\", \"layoffs\", \"downsizing\", \"workforce reduction\", \"mass firing\",\n  \"job cuts\", \"staffing\",\n\n  // Produits & innovation\n  \"product launch\", \"new release\", \"rollout\", \"innovation\", \"prototype\", \"beta test\",\n  \"pilot project\", \"new feature\", \"platform update\", \"tech breakthrough\", \"ai model\",\n  \"research and development\", \"patent filed\", \"patent granted\",\n\n  // Réglementaire & légal\n  \"lawsuit\", \"legal dispute\", \"regulatory approval\", \"fda approval\", \"compliance\",\n  \"antitrust\", \"litigation\", \"settlement\",\n\n  // Stratégie corporate\n  \"restructuring\", \"spin-off\", \"divestiture\", \"rebranding\", \"renamed\",\n  \"corporate transformation\", \"reorganization\",\n\n  // Awards & reconnaissance\n  \"award\", \"recognized as\", \"ranked\", \"listed on\", \"fortune 500\", \"fastest growing\",\n  \"best workplace\",\n\n  // Autres signaux stratégiques\n  \"contract won\", \"government deal\", \"tender\", \"grant\", \"secured funding\",\n  \"sponsorship\", \"partnership agreement\", \"strategic cooperation\"\n];\n\n// 🔹 Récupère le texte brut depuis ton input\nlet rawArticles = $input.first().json.cleanData;\n\n// 🔹 S'assurer que c'est bien un tableau JSON\nlet articles;\ntry {\n  articles = JSON.parse(rawArticles);\n} catch (e) {\n  articles = Array.isArray(rawArticles) ? rawArticles : [];\n}\n\nif (!Array.isArray(articles)) {\n  return [];\n}\n\n// 🔹 Filtrage par keywords (title + description + content si dispo)\nconst lowerKeywords = keywords.map(k => k.toLowerCase());\n\narticles\n  .filter(article => {\n    const text = (\n      (article.description || \"\")\n    ).toLowerCase();\n    return lowerKeywords.some(k => text.includes(k));\n  })\n  .map(article => ({ json: article }));\n\nreturn {cleanData: articles}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        528,
+        -48
+      ],
+      "id": "858f0436-826d-4f41-b3b7-3ad2b709e6a5",
+      "name": "Extraction"
+    },
+    {
+      "parameters": {
+        "url": "https://news.google.com/rss",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -512,
+        -48
+      ],
+      "id": "defa6892-7271-43f5-a50f-65d5d6c75a5c",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Assume the JSON string is in input item under the path: candidates[0].content.parts[0].text\nfunction cleanJsonString(str) {\n  return str\n    .replace(/^```json\\s*/i, \"\") // remove ```json at start\n    .replace(/^```\\s*/i, \"\")     // if it's only ``` at start\n    .replace(/\\s*```$/i, \"\");    // remove trailing ```\n}\n\n\nconst jsonString = $input.first().json.content.parts[0].text\n\nconst cleanData = cleanJsonString(jsonString)\n\n// Parse the string into a JSON object\n\n\n\n\nconst obj = JSON.parse(cleanData);\n// Return the object as an item\nreturn [{ cleanData: obj }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        256,
+        -48
+      ],
+      "id": "377f13eb-99a7-45d3-b7fb-9cc7d3406297",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "content": "## Extract News Frequently, Load data to LLM to clean it and transform it into a clean and precise wanted data",
+        "height": 304,
+        "width": 1952
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1008,
+        -160
+      ],
+      "id": "62361f3b-22fd-4ef4-8993-396ca80d3a23",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "## Companies Enrichment\n",
+        "height": 304,
+        "width": 1536,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1008,
+        208
+      ],
+      "id": "849bf187-17c5-41c8-a696-3b02fe781bca",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.0-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.0-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are a business intelligence assistant. I will provide you with a company name and optionally some basic information. Your task is to enrich the company's profile with relevant details. \n\nFor each company, provide the following fields if possible:\n\n1. Full company name\n2. Industry / sector\n3. Website URL\n4. Headquarters location\n5. Key executives (e.g., CEO, CTO, Head of Marketing)\n6. LinkedIn page URL\n7. Number of employees\n8. Short description of what the company does\n9. Latest news or recent events (e.g., funding, hiring, product launches)\n10. Any other relevant public information\n\nFormat your response as JSON like this:\n\n{\n  \"company_name\": \"\",\n  \"industry\": \"\",\n  \"website\": \"\",\n  \"headquarters\": \"\",\n  \"key_executives\": {\n      \"CEO\": \"\",\n      \"CTO\": \"\",\n      \"Head of Marketing\": \"\"\n  },\n  \"linkedin\": \"\",\n  \"employees\": \"\",\n  \"description\": \"\",\n  \"latest_news\": \"\"\n}\n\nCompany to enrich: \"{{ $json.company }}\"\n"
+            }
+          ]
+        },
+        "options": {
+          "systemMessage": "=You are a business intelligence assistant. I will provide you with a company name and optionally some basic information. Your task is to enrich the company's profile with relevant details. \n\nFor each company, provide the following fields if possible:\n\n1. Full company name\n2. Industry / sector\n3. Website URL\n4. Headquarters location\n5. Key executives (e.g., CEO, CTO, Head of Marketing)\n6. LinkedIn page URL\n7. Number of employees\n8. Short description of what the company does\n9. Latest news or recent events (e.g., funding, hiring, product launches)\n10. Any other relevant public information\n\nFormat your response as JSON like this:\n\n{\n  \"company_name\": \"\",\n  \"industry\": \"\",\n  \"website\": \"\",\n  \"headquarters\": \"\",\n  \"key_executives\": {\n      \"CEO\": \"\",\n      \"CTO\": \"\",\n      \"Head of Marketing\": \"\"\n  },\n  \"linkedin\": \"\",\n  \"employees\": \"\",\n  \"description\": \"\",\n  \"latest_news\": \"\"\n}\n\nCompany to enrich: \"{{ $json.company }}\"\n"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        -640,
+        320
+      ],
+      "id": "aca156c7-6537-4111-bdea-49cf4706ae1d",
+      "name": "Message a model1",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "QbPmzyioRhhvjkXp",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "cleanData",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        720,
+        -48
+      ],
+      "id": "d15534bc-787c-4440-9df2-2e8eeca3a8a7",
+      "name": "Split Out1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.all(); // array of items from previous nodes\n\nfunction cleanJsonString(str) {\n  if (typeof str !== 'string') return str;\n  return str\n    .replace(/^\\s*```json\\s*/i, \"\") // remove ```json at start (with possible leading whitespace)\n    .replace(/^\\s*```\\s*/i, \"\")     // remove bare ``` at start\n    .replace(/\\s*```\\s*$/i, \"\")     // remove trailing ```\n    .trim();\n}\n\nconst result = {}; // will hold parsed objects keyed by company_name or index\nlet idx = 0;\n\nfor (const item of data) {\n  const parts = item?.json?.content?.parts;\n\n  if (!parts) {\n    // if there's no parts array, skip but keep a note\n    continue;\n  }\n\n  // parts may be an array of strings or objects with `.text`\n  for (const part of parts) {\n    const rawText = (part && typeof part === 'object') ? (part.text ?? part) : part;\n    if (!rawText) continue;\n\n    const cleaned = cleanJsonString(rawText);\n\n    try {\n      const parsed = JSON.parse(cleaned);\n      // choose a sensible key for the map\n      const key = parsed.company_name || parsed.company || parsed.name || `company_${idx}`;\n      result[key] = parsed;\n    } catch (err) {\n      // store error info so you can debug bad outputs from the model\n      result[`parse_error_${idx}`] = {\n        error: err.message,\n        snippet: (typeof cleaned === 'string') ? cleaned.slice(0, 1000) : cleaned\n      };\n    }\n    idx++;\n  }\n}\n\n// n8n code node expects an array of items. Return one item with json=result\nreturn [{ data: result }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -304,
+        320
+      ],
+      "id": "5a97807c-93ef-4cf9-9f57-00bf760c7937",
+      "name": "Code in JavaScript3"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1eekxEseUbftRSBJ66DAxAv-QrQVy1Cw2RqrcNzvcR3A",
+          "mode": "list",
+          "cachedResultName": "Enrichment companies",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1eekxEseUbftRSBJ66DAxAv-QrQVy1Cw2RqrcNzvcR3A/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1eekxEseUbftRSBJ66DAxAv-QrQVy1Cw2RqrcNzvcR3A/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "company_name": "={{ $json.company_name }}",
+            "industry": "={{ $json.industry }}",
+            "website": "={{ $json[\"United States Federal Government\"].website }}",
+            "headquarters": "={{ $json.headquarters }}",
+            "key_executives": "={{ $json.key_executives }}",
+            "linkedin": "={{ $json.linkedin }}",
+            "employees": "={{ $json.employees }}",
+            "description": "={{ $json.description }}",
+            "latest_news": "={{ $json.latest_news }}",
+            "other_relevant_information": "={{ $json.other_relevant_information }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "company_name",
+              "displayName": "company_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "industry",
+              "displayName": "industry",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "website",
+              "displayName": "website",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "headquarters",
+              "displayName": "headquarters",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "key_executives",
+              "displayName": "key_executives",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "linkedin",
+              "displayName": "linkedin",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "employees",
+              "displayName": "employees",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "description",
+              "displayName": "description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "latest_news",
+              "displayName": "latest_news",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "other_relevant_information",
+              "displayName": "other_relevant_information",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        144,
+        320
+      ],
+      "id": "cc5b34c1-2280-483b-b2e7-b0e79e5e8554",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "TBv2r6IFBaT3objr",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        -96,
+        320
+      ],
+      "id": "93727ef5-87db-4d83-877f-128f8f716db4",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "content": "## Finding Relevant contacts",
+        "height": 304,
+        "width": 1376,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        592,
+        208
+      ],
+      "id": "511f0541-4547-44b6-b23f-dc1f25615bcf",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/customsearch/v1?key=AIzaSyCd2Rs2QowLqy0q17yZvvMLsz0qaq3cBBs&cx=017576662512468239146:omuauf_lfve&q={{ $json.json.company }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1328,
+        304
+      ],
+      "id": "98225bf0-daaa-4648-a687-f7796b1eddd6",
+      "name": "HTTP Request1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.all()\n\nreturn {data: data}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        304
+      ],
+      "id": "22889ff4-597a-44d6-aa8d-65d2c6f78856",
+      "name": "Code in JavaScript2"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        880,
+        304
+      ],
+      "id": "aa20dd2c-05e0-43b3-b97b-21c3ada895b1",
+      "name": "Split Out2"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cb452a81-c8ee-4093-9585-12d4d7c25ddb",
+              "name": "json.company",
+              "value": "=site:linkedin.com/in \"Head of Marketing\" \"{{ $json.json.company }}\"",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1088,
+        304
+      ],
+      "id": "0c022cce-06b2-45a3-89a2-fa04b93e47c4",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "items",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        1536,
+        304
+      ],
+      "id": "17c36e59-f9a6-40ba-8abe-d6732662df4b",
+      "name": "Split Out3"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1eekxEseUbftRSBJ66DAxAv-QrQVy1Cw2RqrcNzvcR3A",
+          "mode": "list",
+          "cachedResultName": "Enrichment companies And Employee details",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1eekxEseUbftRSBJ66DAxAv-QrQVy1Cw2RqrcNzvcR3A/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1616790217,
+          "mode": "list",
+          "cachedResultName": "EmployeeDetails",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1eekxEseUbftRSBJ66DAxAv-QrQVy1Cw2RqrcNzvcR3A/edit#gid=1616790217"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "kind": "={{ $json.kind }}",
+            "title": "={{ $json.title }}",
+            "link": "={{ $json.link }}",
+            "snippet": "={{ $json.snippet }}",
+            "metaTags": "={{ $json.pagemap}}"
+          },
+          "matchingColumns": [
+            "row_number"
+          ],
+          "schema": [
+            {
+              "id": "kind",
+              "displayName": "kind",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "title",
+              "displayName": "title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "link",
+              "displayName": "link",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "snippet",
+              "displayName": "snippet",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "metaTags",
+              "displayName": "metaTags",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1744,
+        304
+      ],
+      "id": "585dfc0f-f388-4598-8a0c-940d1b967f26",
+      "name": "Append row in sheet1",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "TBv2r6IFBaT3objr",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "Email Notification",
+        "height": 336,
+        "width": 1024,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        144,
+        544
+      ],
+      "id": "ce07ae03-e1f9-4cb6-9109-ba1ff2e670b5",
+      "name": "Sticky Note4"
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "minutes"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        640,
+        688
+      ],
+      "id": "d3372a81-5d9c-40c5-8f41-6379f89e76d2",
+      "name": "Wait",
+      "webhookId": "c5636891-5b55-466a-81fd-00b56c025c49"
+    },
+    {
+      "parameters": {
+        "sendTo": "Bakirmohammed018@gmail.com",
+        "subject": "Finding Relevant contacts and  Enrichment Companies",
+        "emailType": "text",
+        "message": "New profiles are Extracted Check Sheet",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        848,
+        688
+      ],
+      "id": "cacfe38b-d606-4d97-a8df-0941ae7039b8",
+      "name": "Send a message1",
+      "webhookId": "dc2b48fc-5f8d-4fb8-a19e-cc9be2ba4e04",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "yfJh6kEa8MI8OYDY",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldsToAggregate": {
+          "fieldToAggregate": [
+            {
+              "fieldToAggregate": "company"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        432,
+        688
+      ],
+      "id": "02e5c8f1-4090-47d5-8600-0ca2894f5302",
+      "name": "Aggregate"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 8
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -944,
+        -48
+      ],
+      "id": "7e48e0c9-24f2-43cb-984f-293c0dc9a727",
+      "name": "Schedule Trigger"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Extraction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraction": {
+      "main": [
+        [
+          {
+            "node": "Split Out1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out1": {
+      "main": [
+        [
+          {
+            "node": "Message a model1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Code in JavaScript2",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Aggregate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript3": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "Split Out3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript2": {
+      "main": [
+        [
+          {
+            "node": "Split Out2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out2": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out3": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Send a message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "c3b62c00-671f-4273-94b3-e453d453c8b1",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "d4aa24ef9ea65c47737a26ad5d75fc47285461e474ae88b4dfb63960ac35fd68"
+  },
+  "id": "EHmmDtoAK66DMi6d",
+  "tags": []
+}
