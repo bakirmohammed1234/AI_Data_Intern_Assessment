@@ -570,8 +570,7 @@
       "parameters": {
         "sendTo": "Bakirmohammed018@gmail.com",
         "subject": "Finding Relevant contacts and  Enrichment Companies",
-        "emailType": "text",
-        "message": "New profiles are Extracted Check Sheet",
+        "message": "New profiles are Extracted Check Sheet <br> the sheet : https://shorturl.at/Gqsvi",
         "options": {}
       },
       "type": "n8n-nodes-base.gmail",
@@ -585,7 +584,7 @@
       "webhookId": "dc2b48fc-5f8d-4fb8-a19e-cc9be2ba4e04",
       "credentials": {
         "gmailOAuth2": {
-          "id": "yfJh6kEa8MI8OYDY",
+          "id": "cb34zLBZONHYeS4Y",
           "name": "Gmail account"
         }
       }
@@ -824,7 +823,7 @@
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "c3b62c00-671f-4273-94b3-e453d453c8b1",
+  "versionId": "fc584a28-25d2-44d3-9dff-f0e9239cbbb2",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "d4aa24ef9ea65c47737a26ad5d75fc47285461e474ae88b4dfb63960ac35fd68"
